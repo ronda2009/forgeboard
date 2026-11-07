@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ForgeBoard</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header id="topbar">
+  <!--抬头两行：第一行 名字+副标题，页签靠右；第二行 状态胶囊靠右-->
+  <div class="hrow">
+    <div class="brand">
+      <img class="logo" src="logo.png" alt="ForgeBoard">
+      <div class="brandtext">
+        <div class="brandline"><span id="brandName">ForgeBoard</span><span id="brandVer" class="ver"></span></div>
+        <div id="engineState" class="engine-state" data-i18n="brand_tagline">ForgeBoard - model services for OpenClaw</div>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <nav id="tabs">
+  <button class="tab active" data-tab="models" data-i18n="tab_models">Models</button>
+  <button class="tab" data-tab="sessions" data-i18n="tab_sessions">Sessions &amp; Jobs</button>
+  <button class="tab" data-tab="services" data-i18n="tab_services">Services</button>
+  <button class="tab" data-tab="system" data-i18n="tab_system">System</button>
+  <button class="tab" data-tab="diag" data-i18n="tab_diag">Diagnostics</button>
+</nav>
+  </div>
+  <div class="hrow chipsrow">
+    <span id="curModel" class="chip"></span>
+    <a id="monLink" class="chip" href="javascript:void(0)"></a>
+    <a id="ocLink" class="chip" href="javascript:void(0)"></a>
+    <div id="vramChip" class="chip" title="free / total VRAM across cards"></div>
+    <span id="tokChip" class="chip"></span>
+    <select id="langSel" title="language">
+    <option value="en">English</option>
+    <option value="zh">中文</option>
+  </select>
+    <button id="btnRefresh" class="btn ghost" data-i18n="refresh">Refresh</button>
+    <span id="refreshAt" class="chip"></span>
+  </div>
+</header>
+
+<main>
+  <!--============ Models ============-->
+  <section id="page-models" class="page active">
+    <!--硬件卡独占一排；勾选与全停按钮挪到下面一行靠右-->
+    <div class="rowbar" id="cardRow">
+      <div class="cards" id="hostCards"></div>
+      <div class="cards" id="gpuCards"></div>
+    </div>
+    <div class="rowbar">
+      <div class="hint" id="modelNotes">
+        <div data-i18n="stopall_hint">Stop all model services to free VRAM. Vision, embedding, router and llama-swap stay running.</div>
+        <div data-i18n="note_row1">Row start/stop affects only that model: start loads it, stop unloads it.</div>
+        <div data-i18n="note_row2">Swapper-backed models unload only and keep their service; big-model tiers stop the service too.</div>
+        <div id="entryLine" data-i18n="entry_label">Entry address (what the model swapper actually listens on):</div>
+      </div>
+      <div class="grow"></div>
+      <div class="rowbtns">
+        <label class="cklabel"><input type="checkbox" id="ckHideSmall"><span data-i18n="ck_hide_small">Hide embedding and vision models</span></label>
+        <button id="btnStopAll" class="btn danger" data-i18n="btn_stopall">Stop all model services</button>
+        <button id="btnRestartBig" class="btn ghost" data-i18n="btn_restart_big" data-i18n-title="restart_big_warn">Restart current Strata model</button>
+        <button id="btnClearCache" class="btn ghost" data-i18n="btn_clear_cache">Clear Strata cache</button>
+        <button id="btnReloadSwap" class="btn ghost" data-i18n="btn_reload_swap" data-i18n-title="reload_swap_hint">Reload swapper config</button>
+      </div>
+    </div>
+    <table id="modelTable">
+      <thead>
+        <tr>
+          <th data-i18n="col_model">Model</th>
+          <th data-i18n="col_kind">What kind</th>
+          <th data-i18n="col_provider">Mounted by</th>
+          <th data-i18n="col_need">Needs</th>
+          <th data-i18n="col_port">Port</th>
+          <th data-i18n="col_state">State</th>
+          <th data-i18n="col_act">Action</th>
+        </tr>
+      </thead>
+      <tbody id="mountedRows"></tbody>
+    </table>
+    <div id="modelsEmpty" class="empty hidden"></div>
+    <div id="modelsHidden" class="empty hidden"></div>
+
+    <h2 data-i18n="sys_engine">Engine safety</h2>
+    <div class="hint" data-i18n="sys_engine_hint">Idle unload (ttl) is written into the generated swapper config (1800 s). Card reserve is not a separate cache file - it lives here.</div>
+
+    <h2 data-i18n="reserve_box">Card reserve (safety margin, written into the engine tier files)</h2>
+    <div class="rowbar">
+      <label class="inline"><span data-i18n="reserve_first">First card (MiB)</span><input id="reserveFirst" type="number" min="0" step="128" style="width:110px"></label>
+      <label class="inline"><span data-i18n="reserve_later">Other cards (MiB)</span><input id="reserveLater" type="number" min="0" step="128" style="width:110px"></label>
+      <button id="btnReserveSet" class="btn primary" data-i18n="btn_reserve_set">Set reserve</button>
+      <button id="btnReserveRollback" class="btn ghost" data-i18n="btn_reserve_rollback">Roll back last change</button>
+      <div class="grow"></div>
+      <span id="cacheState" class="note"></span>
+    </div>
+    <div class="hint" data-i18n="reserve_hint">These numbers are what the engine keeps free on each card. They live in the tier files; writing them backs up every file first and reads the values back to confirm. Applying them needs a restart of the big model.</div>
+    <details id="reserveBox">
+    <summary id="reserveSummary" data-i18n="reserve_expand">Show the value in each tier file</summary>
+    <table>
+      <thead><tr>
+        <th data-i18n="col_tierfile">Tier file</th>
+        <th data-i18n="col_reserve_first">First card</th>
+        <th data-i18n="col_reserve_later">Other cards</th>
+      </tr></thead>
+      <tbody id="reserveRows"></tbody>
+    </table>
+    </details>
+
+  </section>
+
+  <!--============ Sessions & Jobs (M3) ============-->
+  <section id="page-sessions" class="page">
+    <div id="ocBanner" class="warn hidden"></div>
+    <div class="rowbar">
+      <label class="pickmodel"><span data-i18n="lbl_target">Switch selected windows to</span>
+        <select id="targetModel"></select>
+      </label>
+      <button id="btnSwitchSel" class="btn primary" data-i18n="btn_switch">Switch</button>
+      <button id="btnSelChat" class="btn ghost" data-i18n="btn_selchat">Select chat windows</button>
+      <label class="cklabel"><input type="checkbox" id="ckHideSys" checked><span data-i18n="hide_sys">Hide heartbeats and scheduled jobs</span></label>
+      <div class="grow"></div>
+      <div class="note" id="ocState"></div>
+    </div>
+    <div class="hint" data-i18n="sessions_hint">Switching does not restart services and does not interrupt a running answer (the gateway queues it to the next safe moment). Scheduled jobs and heartbeats are listed but not selected by default.</div>
+    <table>
+      <thead><tr>
+        <th class="ck"><input type="checkbox" id="ckAll"></th>
+        <th data-i18n="col_window">Window</th>
+        <th data-i18n="col_where">Where</th>
+        <th data-i18n="col_winmodel">Model in use</th>
+        <th data-i18n="col_used">Context - used / limit</th>
+        <th data-i18n="col_answering">Answering now</th>
+      </tr></thead>
+      <tbody id="sessionRows"></tbody>
+    </table>
+    <h2 data-i18n="cron_box">Scheduled jobs and heartbeats</h2>
+    <div class="rowbar">
+      <div class="note" id="hbState"></div>
+    </div>
+    <div class="hint" data-i18n="cron_hint">Read-only here on purpose: to change the model a job uses, ask your OpenClaw assistant to do it - this panel writes nothing.</div>
+    <div class="warn" data-i18n="cron_hb_warn">Changing the heartbeat or compaction model needs an OpenClaw gateway restart.</div>
+    <table>
+      <thead><tr>
+        <th data-i18n="col_job">Job</th>
+        <th data-i18n="col_status">Status</th>
+        <th data-i18n="col_cronmodel">Model used</th>
+        <th data-i18n="col_schedule">Schedule</th>
+        <th data-i18n="col_nextrun">Next run</th>
+        <th data-i18n="col_last">Last result</th>
+      </tr></thead>
+      <tbody id="cronRows"></tbody>
+    </table>
+  </section>
+
+  <!--============ Services  ============-->
+  <section id="page-services" class="page">
+    <div class="rowbar">
+      <div class="hint" data-i18n="svc_hint">Services this machine uses, in one list. Location and buttons come from scanning this machine; a remote API is listed but never probed.</div>
+      <div class="hint" data-i18n="stop_everything_hint">Stops the model services above plus the router itself and llama-swap.</div>
+      <div class="grow"></div>
+      <div class="rowbtns">
+        <button id="btnGwRescue" class="btn ghost" data-i18n-title="gw_rescue_hint" data-i18n="btn_gw_rescue">Gateway rescue</button>
+        <button id="btnGwRescueHard" class="btn ghost" data-i18n-title="gw_rescue_hard_hint" data-i18n="btn_gw_rescue_hard">Gateway rescue (hard)</button>
+        <button id="btnStopEverything" class="btn danger" data-i18n="btn_stop_everything">Stop everything (incl. router/swap)</button>
+      </div>
+    </div>
+    <table>
+      <thead><tr>
+        <th data-i18n="col_service">Service</th>
+        <th data-i18n="col_kind2">Role</th>
+        <th data-i18n="col_port">Port</th>
+        <th data-i18n="col_up">Running</th>
+        <th data-i18n="col_installed">Installed</th>
+        <th data-i18n="col_note">Note</th>
+        <th data-i18n="col_loc">Location</th>
+        <th data-i18n="col_ctl">Control</th>
+      </tr></thead>
+      <tbody id="serviceRows"></tbody>
+    </table>
+
+    <h2 data-i18n="ver_box">Versions (this machine vs official latest)</h2>
+    <table>
+      <thead><tr>
+        <th data-i18n="col_component">Component</th>
+        <th data-i18n="col_local">This machine</th>
+        <th data-i18n="col_latest">Official latest</th>
+        <th data-i18n="col_when">Released</th>
+        <th data-i18n="col_verdict">Verdict</th>
+        <th data-i18n="col_links">Link</th>
+      </tr></thead>
+      <tbody id="versionRows"></tbody>
+    </table>
+  </section>
+
+  <!--============ System ============-->
+  <section id="page-system" class="page">
+    <h2 data-i18n="us_box">OpenClaw usage</h2>
+    <div class="hint" data-i18n="us_hint">Collected in the background.</div>
+    <div class="rowbtns">
+      <button id="btnUsageNow" class="btn ghost" data-i18n="us_now" data-i18n-title="us_now_hint">Collect now</button>
+      <span id="usState" class="note"></span>
+    </div>
+    <div class="us-stats" id="usStats"></div>
+    <table>
+      <thead><tr>
+        <th data-i18n="us_col_model">Model</th>
+        <th data-i18n="us_col_today">Today</th>
+        <th data-i18n="us_col_7d">7 days</th>
+        <th data-i18n="us_col_30d">30 days</th>
+        <th data-i18n="us_cost">Cost</th>
+      </tr></thead>
+      <tbody id="usModelRows"></tbody>
+    </table>
+    <div class="hint" id="usUnpriced"></div>
+    <div class="hint" id="usRate"></div>
+    <h2 data-i18n="sys_paths">Paths and ports (this machine only - forgeboard.json)</h2>
+    <div class="grid2">
+      <label><span data-i18n="path_models">Models directory (gguf)</span><input id="pMODELS" spellcheck="false"></label>
+      <label><span data-i18n="path_llama">llama-server.exe</span><input id="pLLAMA_EXE" spellcheck="false"></label>
+      <label><span data-i18n="path_tier">Engine tier directory</span><input id="pTIER_DIR" spellcheck="false"></label>
+      <label><span data-i18n="path_router">Router URL</span><input id="pRouterURL" spellcheck="false"></label>
+      <label><span data-i18n="path_swap">Model-swapper control port</span><input id="pSwapPort" spellcheck="false"></label>
+      <label><span data-i18n="path_ports">Ports to probe</span><input id="pCandidatePorts" spellcheck="false"></label>
+      <label><span data-i18n="path_oc">OpenClaw state directory</span><input id="pOC_HOME" spellcheck="false"></label>
+      <label><span data-i18n="path_occfg">openclaw.json path</span><input id="pOC_CFG" spellcheck="false"></label>
+      <label><span data-i18n="path_rescue">Gateway rescue script</span><input id="pGW_RESCUE" spellcheck="false"></label>
+    </div>
+    <div class="rowbtns">
+      <button id="btnSave" class="btn primary" data-i18n="btn_save">Save</button>
+      <button id="btnDetect" class="btn ghost" data-i18n="btn_detect">Find paths automatically</button>
+      <button id="btnDetectApply" class="btn ghost hidden" data-i18n="btn_detect_apply">Write what was found</button>
+      <span id="saveMsg" class="note"></span>
+    </div>
+    <div class="hint" data-i18n="detect_hint">Nothing is started here: it only looks. Whatever it finds can be written into forgeboard.json with one click, so a new machine needs no hand-typing. Anything it cannot find stays empty and says what was searched.</div>
+    <table class="hidden" id="detectTable">
+      <thead><tr>
+        <th data-i18n="col_field">Field</th>
+        <th data-i18n="col_foundvalue">Value</th>
+        <th data-i18n="col_how">How it was found</th>
+      </tr></thead>
+      <tbody id="detectRows"></tbody>
+    </table>
+
+    <h2 data-i18n="pw_box">Power limits (per card)</h2>
+    <div class="hint" data-i18n="pw_hint">Reading needs no special rights. Writing a limit does - if it is refused, the panel asks whether to retry as administrator (one UAC prompt).</div>
+    <table>
+      <thead><tr>
+        <th data-i18n="col_card">Card</th>
+        <th data-i18n="col_cur">Current limit</th>
+        <th data-i18n="col_def">Default</th>
+        <th data-i18n="col_range">Settable range</th>
+        <th data-i18n="col_set">Set to</th>
+        <th data-i18n="col_act">Action</th>
+      </tr></thead>
+      <tbody id="powerRows"></tbody>
+    </table>
+
+    <h2 data-i18n="su_box">Startup items (this machine)</h2>
+    <div class="hint" data-i18n="su_hint">Read only.</div>
+    <div class="rowbtns">
+      <button id="btnSelfOn" class="btn ghost" data-i18n="btn_self_on">Start this panel with Windows</button>
+      <button id="btnSelfOff" class="btn ghost" data-i18n="btn_self_off">Do not start this panel with Windows</button>
+      <button id="btnOpenFolder" class="btn ghost" data-i18n="btn_open_folder">Open the startup folder</button>
+      <span id="selfState" class="note"></span>
+    </div>
+    <table>
+      <thead><tr>
+        <th data-i18n="col_su_name">Name</th>
+        <th data-i18n="col_su_where">Where</th>
+        <th data-i18n="col_su_cmd">Command</th>
+        <th data-i18n="col_su_state">State</th>
+      </tr></thead>
+      <tbody id="startupRows"></tbody>
+    </table>
+
+    <h2 data-i18n="tk_box">Startup scheduled tasks</h2>
+    <div class="hint" data-i18n="tk_hint">Read only.</div>
+    <div class="rowbtns">
+      <label class="cklabel"><input type="checkbox" id="ckTkSys" checked><span data-i18n="tk_hide_sys">Hide Windows built-in tasks</span></label>
+      <span id="tkState" class="note"></span>
+    </div>
+    <table>
+      <thead><tr>
+        <th data-i18n="col_tk_name">Name</th>
+        <th data-i18n="col_tk_where">Where</th>
+        <th data-i18n="col_tk_trig">Trigger</th>
+        <th data-i18n="col_tk_state">State</th>
+        <th data-i18n="col_tk_last">Last run</th>
+        <th data-i18n="col_tk_result">Result</th>
+      </tr></thead>
+      <tbody id="taskRows"></tbody>
+    </table>
+
+  </section>
+
+  <!--============ Diagnostics ============-->
+  <section id="page-diag" class="page">
+    <div class="rowbar">
+      <button id="btnDoctor" class="btn ghost" data-i18n="btn_doctor">Run doctor</button>
+      <button id="btnShot" class="btn ghost" data-i18n="btn_shot">Self-test</button>
+      <span id="diagMsg" class="note"></span>
+    </div>
+    <pre id="doctorOut" class="out"></pre>
+    <h2 data-i18n="step_log">Operation progress</h2>
+    <div class="hint" data-i18n="step_log_hint">One line per step.</div>
+    <pre id="stepOut" class="out"></pre>
+    <h2 data-i18n="diag_log">Recent messages</h2>
+    <pre id="feedOut" class="out"></pre>
+  </section>
+</main>
+
+<div id="confirm" class="modal hidden">
+  <div class="modal-box">
+    <div id="confirmTitle" class="modal-title"></div>
+    <div id="confirmBody" class="modal-body"></div>
+    <div id="confirmDry" class="modal-dry hidden"></div>
+    <div class="rowbtns right">
+      <button id="confirmNo" class="btn ghost"></button>
+      <button id="confirmYes" class="btn primary"></button>
+    </div>
+  </div>
+</div>
+
+<script src="i18n.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

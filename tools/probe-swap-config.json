@@ -1,0 +1,12 @@
+{
+  "__说明": "探测专用：CPU 小嵌入模型，只为看 llama-swap 代理口支持哪些「忙闲」接口。不动正式配置 bin\\swap-config.json。",
+  "models": {
+    "mxbai-embed-large": {
+      "cmd": "D:\\06.AItools\\llama.cpp\\b11541\\llama-server.exe -m D:\\03.AImodels\\llama-router\\mxbai-embed-large.gguf -ngl 0 -c 512 --host 127.0.0.1 --port ${PORT} --jinja --embeddings",
+      "name": "mxbai-embed-large (probe)",
+      "port": 5900,
+      "proxy": true,
+      "ttl": 120
+    }
+  }
+}
