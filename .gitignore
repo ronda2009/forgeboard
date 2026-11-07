@@ -1,0 +1,25 @@
+# 构建产物（发布走 Releases 附件，不进仓库）
+*.syso
+/bin/
+/tmp/
+/shots/
+/forgeboard.exe
+/forgectl
+/forgectl.exe
+/llama-swap.exe
+/internal/fb/llama-swap.exe
+/tools/*.zip
+
+# 本机状态与配置（个人机器上的东西，不进仓库）
+/forgeboard.json
+/forgeboard-calib.json
+/swap-config.json
+/v2/
+
+# 杂项
+*.log
+*.log.err
+*.bak*
+*.tmp
+.DS_Store
+Thumbs.db

@@ -1,0 +1,9 @@
+{
+  "__说明": "示例配置。复制为 forgeboard.json 后按本机情况填；反斜杠要写两个。",
+  "MODELS": "D:\\03.AImodels\\llama-router",
+  "LLAMA_EXE": "D:\\06.AItools\\llama.cpp\\b11541\\llama-server.exe",
+  "TIER_DIR": "D:\\06.AItools\\Strata",
+  "RouterURL": "http://127.0.0.1:8080",
+  "SwapPort": 8089,
+  "CandidatePorts": [8089, 8090, 8092, 8093, 8094, 8095, 8096, 8102]
+}
