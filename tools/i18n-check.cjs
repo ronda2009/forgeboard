@@ -51,6 +51,13 @@ const unused = [...ke].filter((k) =>
   !used.has(k) && !k.startsWith('op_') && !k.startsWith('note_') && !k.startsWith('step_') && !goTokens.has(k.slice(3)) &&
   !/^(st_|tk_|su_src_|ver_|op_)/.test(k));
 
+const { execFileSync } = require('child_process');
+let syn = 'syntax-ok';
+for (const f of ['i18n.js', 'app.js']) {
+  try { execFileSync(process.execPath, ['--check', path.join(D, f)], { stdio: 'pipe' }); } catch (e) { syn = 'SYNTAX-FAIL ' + f; }
+}
+
+console.log('js-syntax=' + syn);
 console.log('en=' + ke.size + ' zh=' + kz.size + ' ui-used=' + used.size + ' go-tokens=' + goTokens.size);
 console.log('zh-missing=' + (zhMissing.length ? zhMissing.join(',') : 'none'));
 console.log('en-missing=' + (enMissing.length ? enMissing.join(',') : 'none'));

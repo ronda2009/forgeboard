@@ -51,9 +51,9 @@ func Start(ctx context.Context, p Paths, m Model, dry bool) error {
 	case "strata":
 		if dry {
 			fmt.Printf("[DryRun] GET %s/__switch?tier=%s\n", p.RouterURL, tierNameOf(m))
-		if _, err := EnsureRouter(ctx, p); err != nil {
-			return err
-		}
+			if _, err := EnsureRouter(ctx, p); err != nil {
+				return err
+			}
 			return nil
 		}
 		r, err := getJSON(ctx, p.RouterURL+"/__switch?tier="+tierNameOf(m))
@@ -206,7 +206,6 @@ func tierNameOf(m Model) string {
 	return strings.TrimPrefix(m.Name, "tier ")
 }
 
-//
 func checkVRAM(p Paths, m Model) error {
 	if m.Need == 0 {
 		return nil // 引擎报的条目没有体积信息，不拦
@@ -224,6 +223,14 @@ func checkVRAM(p Paths, m Model) error {
 	}
 	limit := best
 	mode := "biggest single card"
+	if p.GPU != "" && p.GPU != "auto" {
+		for _, g := range gpus {
+			if fmt.Sprint(g.Index) == p.GPU {
+				limit = g.Free // 指定了显卡：按那张卡的空闲拦
+				mode = "card " + p.GPU
+			}
+		}
+	}
 	if m.Engine == "strata" {
 		limit = sum
 		mode = "all cards combined"
@@ -235,7 +242,9 @@ func checkVRAM(p Paths, m Model) error {
 }
 
 func killOnPort(port int) error {
-	out, err := exec.Command("netstat", "-ano").Output()
+	cmd := exec.Command("netstat", "-ano")
+	cmd.SysProcAttr = hideCmd
+	out, err := cmd.Output()
 	if err != nil {
 		return err
 	}
@@ -248,12 +257,39 @@ func killOnPort(port int) error {
 		if strings.HasSuffix(f[1], suffix) && strings.EqualFold(f[3], "LISTENING") {
 			pid := f[4]
 			if runtime.GOOS == "windows" {
-				return exec.Command("taskkill", "/PID", pid, "/T", "/F").Run()
+				tk := exec.Command("taskkill", "/PID", pid, "/T", "/F")
+				tk.SysProcAttr = hideCmd
+				out2, err2 := tk.CombinedOutput()
+				if err2 == nil {
+					return nil
+				}
+				if alreadyGone(strings.TrimSpace(string(out2))) {
+					return nil // 进程自己先退了：目的已达到，不当失败
+				}
+				return fmt.Errorf("taskkill %s: %s", pid, tailText(strings.TrimSpace(string(out2)), 160))
 			}
 			return exec.Command("kill", "-9", pid).Run()
 		}
 	}
 	return fmt.Errorf("no listener on port %d (already stopped?)", port)
+}
+
+// alreadyGone 认 taskkill 的「找不到进程」类回话（中英文系统都算），这类不当失败。
+func alreadyGone(s string) bool {
+	l := strings.ToLower(s)
+	for _, k := range []string{"not found", "could not find", "no such", "找不到", "没有"} {
+		if strings.Contains(l, k) {
+			return true
+		}
+	}
+	return false
+}
+
+func tailText(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[len(s)-n:]
 }
 
 func SwapCmdOf(p Paths, id string) string {
@@ -296,9 +332,6 @@ func findMMProj(dir, gguf string) string {
 	return ""
 }
 
-//
-//
-//
 func WriteSwapConfig(p Paths, force bool) (string, int, error) {
 	cfg := filepath.Join(CfgDir(), "swap-config.json")
 	if _, err := os.Stat(cfg); err == nil && !force {
@@ -313,7 +346,8 @@ func WriteSwapConfig(p Paths, force bool) (string, int, error) {
 		return "", 0, fmt.Errorf("no .gguf files found under %s", modelsDir)
 	}
 	cards := Cards(llamaExe) // 卡的情况只探一次，所有模型共用同一份账
-	type cmdEntry struct{ ID, Cmd string }
+	solo := SolveCards(p)
+	type cmdEntry struct{ ID, Cmd, Env string }
 	var ents []cmdEntry
 	seen := map[string]bool{}
 	for _, m := range rows {
@@ -324,8 +358,12 @@ func WriteSwapConfig(p Paths, force bool) (string, int, error) {
 		seen[id] = true
 		file := filepath.Join(modelsDir, m.GGUF)
 		cmd := llamaExe + " -m " + file + " -ngl 99"
+		env := ""
 		if meta, ok := GGUFMeta(file); ok {
-			pl := budget.Solve(meta, cards)
+			pl := budget.Solve(meta, solo)
+			if pl.Card.UUID != "" {
+				env = "CUDA_VISIBLE_DEVICES=" + pl.Card.UUID
+			}
 			if pl.Code != "" {
 				cmd += fmt.Sprintf(" -c %d", budget.NominalCtx(meta, pl))
 			} else {
@@ -335,6 +373,15 @@ func WriteSwapConfig(p Paths, force bool) (string, int, error) {
 				}
 			}
 		} else {
+			if len(solo) > 0 {
+				best := solo[0]
+				for _, c := range solo {
+					if c.FreeMiB > best.FreeMiB {
+						best = c
+					}
+				}
+				env = "CUDA_VISIBLE_DEVICES=" + best.UUID
+			}
 			ctxv := m.Ctx
 			if ctxv == 0 {
 				ctxv = 32768
@@ -350,7 +397,7 @@ func WriteSwapConfig(p Paths, force bool) (string, int, error) {
 				cmd += " --mm " + mm + " --image-min-tokens 1024" // 视觉模型没投影层就是半残
 			}
 		}
-		ents = append(ents, cmdEntry{id, cmd})
+		ents = append(ents, cmdEntry{id, cmd, env})
 	}
 	ids := make([]string, 0, len(ents))
 	for _, e := range ents {
@@ -367,7 +414,11 @@ func WriteSwapConfig(p Paths, force bool) (string, int, error) {
 		if i == len(ents)-1 {
 			comma = ""
 		}
-		fmt.Fprintf(&b, "    %q: { \"cmd\": %q, \"name\": %q, \"ttl\": 1800 }%s\n", e.ID, e.Cmd, e.ID, comma)
+		if e.Env != "" {
+			fmt.Fprintf(&b, "    %q: { \"cmd\": %q, \"name\": %q, \"ttl\": 1800, \"env\": [%q] }%s\n", e.ID, e.Cmd, e.ID, e.Env, comma)
+		} else {
+			fmt.Fprintf(&b, "    %q: { \"cmd\": %q, \"name\": %q, \"ttl\": 1800 }%s\n", e.ID, e.Cmd, e.ID, comma)
+		}
 	}
 	b.WriteString("  }\n}\n")
 	if err := os.WriteFile(cfg, []byte(b.String()), 0o644); err != nil {
@@ -376,9 +427,6 @@ func WriteSwapConfig(p Paths, force bool) (string, int, error) {
 	return cfg, len(ents), nil
 }
 
-//
-//
-//
 func groupsJSON(cards []budget.Card, ids []string) string {
 	vis := 0
 	for _, c := range cards {

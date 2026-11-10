@@ -1,6 +1,3 @@
-//
-//
-//
 package budget
 
 import (
@@ -19,7 +16,6 @@ const (
 	KVQ4_0 KVType = "q4_0"
 )
 
-//
 var kvBytesPerElem = map[KVType]float64{
 	KVF16:  2.0,
 	KVQ8_0: 1.125,
@@ -49,6 +45,7 @@ func (m Meta) Ok() bool {
 
 type Card struct {
 	UUID     string
+	Index    int // nvidia-smi physical index
 	Name     string
 	TotalMiB int
 	FreeMiB  int
@@ -57,7 +54,6 @@ type Card struct {
 	Holder   string // 现在谁占着这张卡（进程名），只用来写拒绝理由
 }
 
-//
 type Plan struct {
 	Ctx        int
 	KV         KVType
@@ -120,7 +116,6 @@ func (m Meta) MaxCtx(c Card, kv KVType) int {
 	return floor1024(int(math.Floor(float64(room) / per)))
 }
 
-//
 func Solve(m Meta, cards []Card) Plan {
 	if !m.Ok() {
 		return Plan{

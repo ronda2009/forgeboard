@@ -160,11 +160,11 @@ func ControlService(ctx context.Context, p Paths, kind string, port int, act str
 				return op("svc_gw_rest_dry", true).subj("path", orNone(oc.CLI)), nil
 			}
 			Step("step_gw_restart", "path", orNone(oc.CLI))
-			if _, err := oc.RestartGateway(ctx); err != nil {
-				Step("step_gw_fail", "path", orNone(oc.CLI))
+			Step("step_gw_wait", "port", itoa(port))
+			if _, err := oc.RestartGateway(ctx, port); err != nil {
+				Step("step_gw_fail", "path", orNone(oc.CLI), "port", itoa(port))
 				return nil, err
 			}
-			Step("step_gw_wait", "port", itoa(port))
 			return op("svc_gw_rest_done", false).subj("path", orNone(oc.CLI)), nil
 		}
 		if dry {
@@ -215,7 +215,7 @@ func ensureService(ctx context.Context, p Paths, kind string, port int) (string,
 		if !oc.Available() {
 			return "", fmt.Errorf("openclaw command line not found (set OC_CLI in forgeboard.json)")
 		}
-		if _, err := oc.StartGateway(ctx); err != nil {
+		if _, err := oc.StartGateway(ctx, port); err != nil {
 			return "", err
 		}
 		return oc.CLI, nil
@@ -804,28 +804,31 @@ func noteNotInstalled(installed, up bool) string {
 	return "note-not-installed"
 }
 
-func (o OC) StartGateway(ctx context.Context) (string, error) {
-	return o.gatewayCmd(ctx, "start")
+func (o OC) StartGateway(ctx context.Context, port int) (string, error) {
+	return o.gatewayCmd(ctx, "start", port)
 }
 
 func (o OC) StopGateway(ctx context.Context) (string, error) {
-	return o.gatewayCmd(ctx, "stop")
+	return o.gatewayCmd(ctx, "stop", 0)
 }
 
-func (o OC) gatewayCmd(ctx context.Context, verb string) (string, error) {
+func (o OC) gatewayCmd(ctx context.Context, verb string, port int) (string, error) {
 	if o.CLI == "" {
 		return "", fmt.Errorf("openclaw command line not found (set OC_CLI in forgeboard.json)")
 	}
-	cctx, cancel := context.WithTimeout(ctx, 180*time.Second)
+	cctx, cancel := context.WithTimeout(ctx, 360*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(cctx, "node", o.CLI, "gateway", verb)
 	cmd.SysProcAttr = hideCmd
 	out, err := cmd.CombinedOutput()
 	txt := strings.TrimSpace(string(out))
-	if err != nil {
-		return txt, fmt.Errorf("gateway %s failed: %w", verb, err)
+	if err == nil {
+		return txt, nil
 	}
-	return txt, nil
+	if verb == "start" && port > 0 && waitPortUp(port, 90) {
+		return txt, nil // 端口起来了：start 报非零退出不算失败
+	}
+	return txt, fmt.Errorf("gateway %s failed: %s%s", verb, errText(err, ""), outTail(txt))
 }
 
 func StopOneService(ctx context.Context, p Paths, kind string, port int) error {

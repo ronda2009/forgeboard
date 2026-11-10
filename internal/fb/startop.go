@@ -35,11 +35,12 @@ func StartOp(ctx context.Context, p Paths, m Model, dry bool) (*OpResult, error)
 
 	err := Start(ctx, p, m, false)
 	if err == nil {
-		r := op("start_done", false).subj("model", m.Key)
-		if pl, _ := PlanStart(p, ModelGGUF(p, m)); pl.Ctx > 0 {
-			r.subj("ctx", itoa(pl.Ctx), "kv", string(pl.KV), "card", orNone(pl.Card.Name), "need", itoa(pl.NeedMiB))
+		pl, _ := PlanStart(p, ModelGGUF(p, m))
+		if pl.Ctx <= 0 {
+			return op("start_done_bare", false).subj("model", m.Key), nil // 没有上下文/卡这些数据：不把 {ctx} 这类空位原样留在句子里
 		}
-		return r, nil
+		return op("start_done", false).subj("model", m.Key).
+			subj("ctx", itoa(pl.Ctx), "kv", string(pl.KV), "card", orNone(pl.Card.Name), "need", itoa(pl.NeedMiB)), nil
 	}
 	pe, ok := err.(*PlanError)
 	if !ok {
@@ -92,7 +93,7 @@ func ReloadSwapOp(ctx context.Context, p Paths, dry bool) (*OpResult, error) {
 		short = short[:12]
 	}
 	if dry {
-		r := op("reload_dry", true).subj("hash", short, "stale", bstr(stale))
+		r := op("reload_dry", true).subj("hash", short, "stale", bstr(stale), "running", "—")
 		if busy := s.Running(ctx); len(busy) > 0 {
 			r.subj("running", strings.Join(busy, ", "))
 		}

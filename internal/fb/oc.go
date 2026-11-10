@@ -55,7 +55,7 @@ func (o OC) call(ctx context.Context, method string, params map[string]any, time
 	}
 	out, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("gateway call %s failed: %w", method, err)
+		return nil, fmt.Errorf("gateway call %s failed: %s%s", method, errText(err, ""), callErrDetail(err))
 	}
 	raw := string(out)
 	i := strings.IndexByte(raw, '{')
@@ -215,10 +215,10 @@ type Cron struct {
 	NextRun  int64  `json:"nextRun"`
 	LastRun  int64  `json:"lastRun"`
 	LastStat string `json:"lastStatus"`
-	Kind     string `json:"kind,omitempty"`  // script | agentTurn | heartbeat（payload.kind）
-	Model    string `json:"model,omitempty"` // 定义里钉的模型（空＝跟默认）
-	Needs    bool   `json:"needs"`           // 要不要模型：agentTurn/heartbeat 才要；纯脚本换了没意义
-	RunModel string `json:"runModel,omitempty"` // 最近一次真跑用的模型（cron.runs 现读；没钉时这才是真相）
+	Kind     string `json:"kind,omitempty"`       // script | agentTurn | heartbeat（payload.kind）
+	Model    string `json:"model,omitempty"`      // 定义里钉的模型（空＝跟默认）
+	Needs    bool   `json:"needs"`                // 要不要模型：agentTurn/heartbeat 才要；纯脚本换了没意义
+	RunModel string `json:"runModel,omitempty"`   // 最近一次真跑用的模型（cron.runs 现读；没钉时这才是真相）
 	Launched string `json:"launchedBy,omitempty"` // 被哪条脚本任务手动拉起（脚本里 cron run <id>）：这种任务表上的时间不是它真正的触发时间
 }
 
@@ -277,11 +277,11 @@ func (o OC) ListCrons(ctx context.Context) ([]Cron, error) {
 	return out, nil
 }
 
-func (o OC) RestartGateway(ctx context.Context) (string, error) {
+func (o OC) RestartGateway(ctx context.Context, port int) (string, error) {
 	if o.CLI == "" {
 		return "", errors.New("openclaw command line not found (set OC_CLI in forgeboard.json)")
 	}
-	cctx, cancel := context.WithTimeout(ctx, 180*time.Second)
+	cctx, cancel := context.WithTimeout(ctx, 360*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(cctx, "node", o.CLI, "gateway", "restart")
 	if runtime.GOOS == "windows" {
@@ -289,10 +289,29 @@ func (o OC) RestartGateway(ctx context.Context) (string, error) {
 	}
 	out, err := cmd.CombinedOutput()
 	txt := strings.TrimSpace(string(out))
-	if err != nil {
-		return txt, fmt.Errorf("gateway restart failed: %w", err)
+	if err == nil {
+		return txt, nil
 	}
-	return txt, nil
+	if waitPortUp(port, 90) {
+		return txt, nil // 命令没收尾，但端口已回话：重启其实成功了
+	}
+	return txt, fmt.Errorf("gateway restart failed: %s%s", errText(err, ""), outTail(txt))
+}
+
+// outTail 把子进程自己的回话附在错误后面：只报 exit status 1 看不出原因。
+// callErrDetail 取 gateway call 失败时子进程写到 stderr 的原因行。
+func callErrDetail(err error) string {
+	if ee, ok := err.(*exec.ExitError); ok && len(ee.Stderr) > 0 {
+		return "（" + tailText(strings.TrimSpace(string(ee.Stderr)), 240) + "）"
+	}
+	return ""
+}
+
+func outTail(txt string) string {
+	if txt == "" {
+		return ""
+	}
+	return "（命令回话：" + tailText(txt, 300) + "）"
 }
 
 func HeartbeatModels(p Paths) (heartbeat, compaction, primary string) {

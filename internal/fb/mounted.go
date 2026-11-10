@@ -272,6 +272,14 @@ func PortUp(port int) bool {
 	return true
 }
 
+// GatewayPort 读 openclaw.json 里配的网关端口；读不到用默认 18789。
+func GatewayPort(p Paths) int {
+	if oc, err := LoadOCConfig(p); err == nil && oc.GatewayPort > 0 {
+		return oc.GatewayPort
+	}
+	return 18789
+}
+
 func itoa(n int) string {
 	if n == 0 {
 		return "0"

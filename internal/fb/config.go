@@ -21,6 +21,7 @@ type Paths struct {
 	RouterURL      string `json:"RouterURL"`
 	SwapPort       int    `json:"SwapPort"` // llama-swap 管理端口
 	CandidatePorts []int  `json:"CandidatePorts"`
+	GPU            string `json:"GPU"`       // 模型用哪张显卡：空/auto=按空闲自动挑，0/1=指定物理编号
 	HideSmall      bool   `json:"HideSmall"` // 模型页勾选「隐藏嵌入与视觉模型」（存这里，重启还记得）
 }
 

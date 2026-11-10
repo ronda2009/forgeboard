@@ -206,7 +206,7 @@ type ModelRow struct {
 	Port     int    `json:"port"`
 	Running  bool   `json:"running"`
 	Source   string `json:"source"`
-	Fit      string `json:"fit"` // can | novram | running | switch
+	Fit      string `json:"fit"`               // can | novram | running | switch
 	Mounted  string `json:"mounted,omitempty"` // 被 OpenClaw 挂载的哪个模型 id 认领（空＝存着没挂）
 	Kind     string `json:"kind,omitempty"`    // embed | vision | text（从挂载清单判，见 mounted.go）
 	Tools    bool   `json:"tools,omitempty"`
@@ -221,35 +221,36 @@ type Snapshot struct {
 	Router    *RouterInfo `json:"router"`
 	Swap      *SwapInfo   `json:"swap"`
 
-	Models    []ModelRow      `json:"models"`
-	Now       string          `json:"now"`
-	Stamp     string          `json:"stamp"`   // 版本 + 编译时刻（标题栏显示，免得「改了看不到」）
-	OCReady   bool            `json:"ocReady"` // OpenClaw 联动能不能用（找不找得到网关命令行）
-	OCNote    string          `json:"ocNote"`
-	GWPort    int             `json:"gwPort"`  // OpenClaw 网关端口（openclaw.json 现读；界面那个对话入口用它，不写死 18789）
-	Windows   []fb.Window     `json:"windows"` // 各对话窗口当前用哪个模型
-	Targets   []fb.ModelCap   `json:"targets"`   // 可切目标模型与上下文上限
-	Crons     []fb.Cron       `json:"crons"`     // 定时任务与心跳（网关 cron.list）
-	Services  []fb.Service    `json:"services"` // 服务体检：谁在跑 / 谁没装
-	Mounted   []MountedRow    `json:"mounted"`   // OpenClaw 挂载的模型（本地已部署才算，存着没挂的不算）
-	Lang      string          `json:"lang"`      // 界面语言（存配置，重启不丢）
-	KindNote  string          `json:"kindNote"`  // 「是什么模型」这列怎么判的（一句话说清）
-	HideSmall bool            `json:"hideSmall"` // 模型页那个勾选：隐藏嵌入与视觉（存配置）
-	HBModel   string          `json:"hbModel"`   // 心跳现在用哪个模型（只读；改它要网关重启）
-	CPModel   string          `json:"cpModel"`   // 上下文压缩现在用哪个模型（只读）
-	DefModel  string          `json:"defModel"`  // 新窗口的默认模型（只读）
-	Versions  []fb.VersionRow `json:"versions"` // 本机版本 vs 官方最新
-	Host      fb.HostInfo     `json:"host"` // 整机 CPU 与内存现状
-	Powers    []fb.PowerRow   `json:"powers"` // 每张卡功率上限现状
-	Reserve   []fb.ReserveRow `json:"reserve"`   // 每个档位文件的安全垫现值（只读）
-	Cache     fb.CacheInfo    `json:"cache"`     // 大块头缓存现状（只读路由器）
-	Startup   []fb.StartupItem `json:"startup"`   // 本机开机启动项（注册表两处 Run + 两个启动文件夹）
-	Tasks     []fb.TaskItem  `json:"tasks"`    // 开机计划任务（只展示；含隐藏的与系统那批）
-	TaskNote  string         `json:"taskNote,omitempty"` // 读不到/还在读时的说明
-	SelfOn    bool             `json:"selfOn"`    // 本程序自己在不在开机启动里
-	SelfEntry string           `json:"selfEntry"` // 在的话那条注册表值
+	Models    []ModelRow       `json:"models"`
+	Now       string           `json:"now"`
+	Stamp     string           `json:"stamp"`   // 版本 + 编译时刻（标题栏显示，免得「改了看不到」）
+	OCReady   bool             `json:"ocReady"` // OpenClaw 联动能不能用（找不找得到网关命令行）
+	OCNote    string           `json:"ocNote"`
+	GWPort    int              `json:"gwPort"`             // OpenClaw 网关端口（openclaw.json 现读；界面那个对话入口用它，不写死 18789）
+	Windows   []fb.Window      `json:"windows"`            // 各对话窗口当前用哪个模型
+	Targets   []fb.ModelCap    `json:"targets"`            // 可切目标模型与上下文上限
+	Crons     []fb.Cron        `json:"crons"`              // 定时任务与心跳（网关 cron.list）
+	Services  []fb.Service     `json:"services"`           // 服务体检：谁在跑 / 谁没装
+	Mounted   []MountedRow     `json:"mounted"`            // OpenClaw 挂载的模型（本地已部署才算，存着没挂的不算）
+	Lang      string           `json:"lang"`               // 界面语言（存配置，重启不丢）
+	KindNote  string           `json:"kindNote"`           // 「是什么模型」这列怎么判的（一句话说清）
+	GPU       string           `json:"gpu"`                // 模型用哪张显卡：auto / 0 / 1（存配置）
+	HideSmall bool             `json:"hideSmall"`          // 模型页那个勾选：隐藏嵌入与视觉（存配置）
+	HBModel   string           `json:"hbModel"`            // 心跳现在用哪个模型（只读；改它要网关重启）
+	CPModel   string           `json:"cpModel"`            // 上下文压缩现在用哪个模型（只读）
+	DefModel  string           `json:"defModel"`           // 新窗口的默认模型（只读）
+	Versions  []fb.VersionRow  `json:"versions"`           // 本机版本 vs 官方最新
+	Host      fb.HostInfo      `json:"host"`               // 整机 CPU 与内存现状
+	Powers    []fb.PowerRow    `json:"powers"`             // 每张卡功率上限现状
+	Reserve   []fb.ReserveRow  `json:"reserve"`            // 每个档位文件的安全垫现值（只读）
+	Cache     fb.CacheInfo     `json:"cache"`              // 大块头缓存现状（只读路由器）
+	Startup   []fb.StartupItem `json:"startup"`            // 本机开机启动项（注册表两处 Run + 两个启动文件夹）
+	Tasks     []fb.TaskItem    `json:"tasks"`              // 开机计划任务（只展示；含隐藏的与系统那批）
+	TaskNote  string           `json:"taskNote,omitempty"` // 读不到/还在读时的说明
+	SelfOn    bool             `json:"selfOn"`             // 本程序自己在不在开机启动里
+	SelfEntry string           `json:"selfEntry"`          // 在的话那条注册表值
 	Usage     *fb.UsageSummary `json:"usage"`
-	SelfDir   string           `json:"selfDir"`   // 用户启动文件夹路径（给「打开启动文件夹」用）
+	SelfDir   string           `json:"selfDir"` // 用户启动文件夹路径（给「打开启动文件夹」用）
 }
 
 type RouterInfo struct {
@@ -311,12 +312,18 @@ func (a *App) Snapshot() (*Snapshot, error) {
 	} else {
 		s.GpuErr = err.Error()
 	}
-	best, sum := 0, 0
+	best, sum, picked, hasPick := 0, 0, 0, false
 	for _, g := range s.GPUs {
 		sum += g.Free
 		if g.Free > best {
 			best = g.Free
 		}
+		if fmt.Sprint(g.Index) == p.GPU {
+			picked, hasPick = g.Free, true
+		}
+	}
+	if hasPick {
+		best = picked // 指定了显卡：能不能起就按那张卡的空闲算
 	}
 	bigRunning := false
 	for _, m := range rows {
@@ -396,6 +403,7 @@ func (a *App) Snapshot() (*Snapshot, error) {
 	s.OCReady, s.OCNote = ocStatus(p)
 	s.Lang = p.Lang
 	s.HideSmall = p.HideSmall
+	s.GPU = p.GPU
 	oc := fb.NewOC(p)
 	if oc.Available() {
 		var wg sync.WaitGroup
@@ -585,7 +593,7 @@ func (a *App) RestartGateway(dry bool) (string, error) {
 	if dry {
 		return "[DryRun] node openclaw.mjs gateway restart", nil
 	}
-	out, err := oc.RestartGateway(a.ctx)
+	out, err := oc.RestartGateway(a.ctx, fb.GatewayPort(fb.LoadPaths()))
 	if err != nil {
 		return out, err
 	}
@@ -718,7 +726,7 @@ func (a *App) SwitchWindows(model string, keys []string, dry bool) (string, erro
 	if err := oc.PatchMany(a.ctx, model, keys); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("switched %d window(s) to %s", len(hit), model), nil
+	return fmt.Sprintf(uiT("switched %d window(s) to %s"), len(hit), model), nil
 }
 
 func (a *App) StartModel(key string, dry bool) (*fb.OpResult, error) {
@@ -799,6 +807,31 @@ func (a *App) StopEverything(dry bool) (*fb.OpResult, error) {
 
 func (a *App) ServiceAct(kind string, port int, act string, dry bool) (*fb.OpResult, error) {
 	return fb.ControlService(a.ctx, fb.LoadPaths(), kind, port, act, dry)
+}
+
+// SetGPU 记住用哪张显卡，并按它重写换模型器配置（不重启服务，等下次加载生效）。
+func (a *App) SetGPU(g string) string {
+	if g != "auto" {
+		digits := len(g) > 0
+		for _, ch := range g {
+			if ch < '0' || ch > '9' {
+				digits = false
+				break
+			}
+		}
+		if !digits {
+			g = "auto"
+		}
+	}
+	p := fb.LoadPaths()
+	if p.GPU != g {
+		p.GPU = g
+		if b, err := json.MarshalIndent(p, "", "  "); err == nil {
+			_ = os.WriteFile(filepath.Join(fb.CfgDir(), "forgeboard.json"), b, 0o644)
+		}
+	}
+	_, _, _ = fb.WriteSwapConfig(p, true)
+	return g
 }
 
 func (a *App) SetHideSmall(hide bool) bool {

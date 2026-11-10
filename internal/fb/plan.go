@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/abrander/gguf"
-	goproc "github.com/shirou/gopsutil/v3/process"
 	"github.com/ronda2009/forgeboard/internal/budget"
+	goproc "github.com/shirou/gopsutil/v3/process"
 )
 
 func GGUFMeta(path string) (m budget.Meta, ok bool) {
@@ -105,10 +105,11 @@ func metaStr(md map[string]any, key string) (string, bool) {
 	return s, true
 }
 
-//
 func Cards(llamaExe string) []budget.Card {
-	out, err := exec.Command("nvidia-smi",
-		"--query-gpu=index,uuid,name,memory.total,memory.free", "--format=csv,noheader,nounits").Output()
+	cmd := exec.Command("nvidia-smi",
+		"--query-gpu=index,uuid,name,memory.total,memory.free", "--format=csv,noheader,nounits")
+	cmd.SysProcAttr = hideCmd
+	out, err := cmd.Output()
 	if err != nil {
 		return nil
 	}
@@ -118,10 +119,11 @@ func Cards(llamaExe string) []budget.Card {
 		if len(f) < 5 {
 			continue
 		}
+		idx, _ := strconv.Atoi(strings.TrimSpace(f[0]))
 		total, _ := strconv.Atoi(strings.TrimSpace(f[3]))
 		free, _ := strconv.Atoi(strings.TrimSpace(f[4]))
 		cards = append(cards, budget.Card{
-			UUID: strings.TrimSpace(f[1]), Name: strings.TrimSpace(f[2]),
+			UUID: strings.TrimSpace(f[1]), Index: idx, Name: strings.TrimSpace(f[2]),
 			TotalMiB: total, FreeMiB: free,
 		})
 	}
@@ -134,7 +136,9 @@ func Cards(llamaExe string) []budget.Card {
 }
 
 func holdCards(cards []budget.Card) {
-	out, err := exec.Command("nvidia-smi", "--query-compute-apps=pid,gpu_uuid", "--format=csv,noheader").Output()
+	cmd := exec.Command("nvidia-smi", "--query-compute-apps=pid,gpu_uuid", "--format=csv,noheader")
+	cmd.SysProcAttr = hideCmd
+	out, err := cmd.Output()
 	if err != nil {
 		return
 	}
@@ -181,12 +185,13 @@ func procName(raw string) string {
 	return strings.TrimSpace(name)
 }
 
-//
 func labelCards(llamaExe string, cards []budget.Card) {
 	if llamaExe == "" {
 		return
 	}
-	out, err := exec.Command(llamaExe, "--list-devices").Output()
+	cmd := exec.Command(llamaExe, "--list-devices")
+	cmd.SysProcAttr = hideCmd
+	out, err := cmd.Output()
 	if err != nil {
 		return // 引擎没装/跑不了：不猜设备名，后面按「没有可见卡」判
 	}
@@ -285,6 +290,30 @@ func LogAction(msg string) {
 	fmt.Fprintf(f, "%s %s\n", time.Now().Format("2006-01-02 15:04:05"), msg)
 }
 
+// SolveCards 给出「可以拿来规划」的卡表：每张都当成单独可见（引擎里恒为 CUDA0），
+// 指定了 GPU 就只留那一张。编号全部取自 nvidia-smi，不假设 0=哪张卡。
+func SolveCards(p Paths) []budget.Card {
+	cards := Cards(p.LLAMA_EXE)
+	solo := make([]budget.Card, 0, len(cards))
+	for _, c := range cards {
+		c.Visible = true
+		c.Label = "CUDA0"
+		solo = append(solo, c)
+	}
+	if p.GPU != "" && p.GPU != "auto" {
+		kept := make([]budget.Card, 0, len(solo))
+		for _, c := range solo {
+			if fmt.Sprint(c.Index) == p.GPU {
+				kept = append(kept, c)
+			}
+		}
+		if len(kept) > 0 {
+			solo = kept
+		}
+	}
+	return solo
+}
+
 func PlanStart(p Paths, ggufPath string) (budget.Plan, string) {
 	if ggufPath == "" {
 		return budget.Plan{Code: "no_meta", Reason: "this entry has no gguf file (router tier): the engine's own config decides its parameters", Args: map[string]string{"model": "(router tier)"}}, ""
@@ -293,7 +322,7 @@ func PlanStart(p Paths, ggufPath string) (budget.Plan, string) {
 	if !ok {
 		return budget.Plan{Code: "no_meta", Reason: fmt.Sprintf("cannot read the header of %s (missing GGUF fields or a broken file): keeping the parameters from the config file", filepath.Base(ggufPath)), Args: map[string]string{"model": filepath.Base(ggufPath)}}, ""
 	}
-	pl := budget.Solve(m, Cards(p.LLAMA_EXE))
+	pl := budget.Solve(m, SolveCards(p))
 	if pl.Code != "" {
 		return pl, ""
 	}

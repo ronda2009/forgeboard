@@ -53,10 +53,11 @@
         <div data-i18n="stopall_hint">Stop all model services to free VRAM. Vision, embedding, router and llama-swap stay running.</div>
         <div data-i18n="note_row1">Row start/stop affects only that model: start loads it, stop unloads it.</div>
         <div data-i18n="note_row2">Swapper-backed models unload only and keep their service; big-model tiers stop the service too.</div>
-        <div id="entryLine" data-i18n="entry_label">Entry address (what the model swapper actually listens on):</div>
+        <div id="entryLine">Entry address (what the model swapper actually listens on):</div>
       </div>
       <div class="grow"></div>
       <div class="rowbtns">
+        <label class="cklabel"><span data-i18n="gpu_label">GPU</span><select id="selGPU" title="gpu"><option value="auto" data-i18n="gpu_auto">Auto</option></select></label>
         <label class="cklabel"><input type="checkbox" id="ckHideSmall"><span data-i18n="ck_hide_small">Hide embedding and vision models</span></label>
         <button id="btnStopAll" class="btn danger" data-i18n="btn_stopall">Stop all model services</button>
         <button id="btnRestartBig" class="btn ghost" data-i18n="btn_restart_big" data-i18n-title="restart_big_warn">Restart current Strata model</button>
@@ -308,6 +309,8 @@
     <pre id="feedOut" class="out"></pre>
   </section>
 </main>
+
+<div id="busyBar" class="busybar hidden"></div>
 
 <div id="confirm" class="modal hidden">
   <div class="modal-box">

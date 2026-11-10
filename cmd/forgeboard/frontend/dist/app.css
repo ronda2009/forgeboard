@@ -175,6 +175,15 @@ tr.us-zero .mname { font-weight: 500; }
 .modal-box { width: 560px; max-width: 92vw; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
 .modal-title { font-weight: 600; margin-bottom: 6px; }
 .modal-body { color: var(--fg2); font-size: 12px; margin-bottom: 10px; }
+/* 自检跑的时候画面定住：看不见层里换页/换语言，用户看不到跳 */
+body.selftesting main { visibility: hidden; }
+body.selftesting header { visibility: hidden; }
+.busybar.hidden { display: none; }
+.busybar { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 60;
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 6px;
+  padding: 8px 14px; font-size: 12px; color: var(--fg); box-shadow: 0 4px 16px rgba(0,0,0,.4); }
+body.selftesting #confirm { display: none !important; }
+
 .modal-dry {
   background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 8px;
   font: 12px/1.5 ui-monospace, Consolas, monospace; white-space: pre-wrap; margin-bottom: 10px;

@@ -11,6 +11,7 @@ function goApp() {
 
 function feed(msg) {
   if (stepKey(msg)) { stepLine(msg); return; }
+  hideStepBar(); // 动作有了结论，进度条让位
   const out = $('feedOut');
   out.textContent = (out.textContent + '\n' + msg).split('\n').slice(-40).join('\n');
 }
@@ -43,9 +44,25 @@ function stepText(msg) {
   return s;
 }
 function stepLine(msg) {
+  const txt = stepText(msg);
   const out = $('stepOut');
   if (!out) { feed(msg); return; }
-  out.textContent = (out.textContent + '\n' + stepText(msg)).split('\n').slice(-60).join('\n');
+  out.textContent = (out.textContent + '\n' + txt).split('\n').slice(-60).join('\n');
+  const ev = $('feedOut'); // 事件日志里也留一行：重启这类动作的每一步都要查得到
+  if (ev) ev.textContent = (ev.textContent + '\n' + txt).split('\n').slice(-40).join('\n');
+  showStepBar(txt); // 在别的页面上也能看到「进行到哪一步」
+}
+
+function showStepBar(txt) {
+  if (document.body.classList.contains('selftesting')) return;
+  const bar = $('busyBar');
+  if (!bar) return;
+  bar.textContent = txt;
+  bar.classList.remove('hidden');
+}
+function hideStepBar() {
+  const bar = $('busyBar');
+  if (bar && !document.body.classList.contains('selftesting')) bar.classList.add('hidden');
 }
 
 function miB(n) {
@@ -185,6 +202,16 @@ function renderMounted(s) {
   $('modelsHidden').classList.toggle('hidden', hiddenN <= 0);
   if (hiddenN > 0) $('modelsHidden').textContent = t('models_hidden').split('{n}').join(hiddenN);
   $('ckHideSmall').checked = hideSmall;
+  if ($('selGPU')) {
+    const sel = $('selGPU');
+    const want = ['auto'].concat((s.gpus || []).map(g => String(g.index))).join(',');
+    const have = Array.from(sel.options).map(o => o.value).join(',');
+    if (want !== have) {
+      sel.innerHTML = '<option value="auto">' + t('gpu_auto') + '</option>' +
+        (s.gpus || []).map(g => '<option value="' + g.index + '">' + g.index + ' · ' + g.name + '</option>').join('');
+    }
+    sel.value = (s.gpu || 'auto');
+  }
 }
 
 let LAST_MS = 0;
@@ -316,7 +343,14 @@ function renderCrons(s) {
 function opHead(r) {
   if (!r || typeof r === 'string') return String(r || '');
   let s = t('op_' + r.token);
-  Object.keys(r.args || {}).forEach(k => { s = s.split('{' + k + '}').join(r.args[k]); });
+  const miss = Object.keys(r.args || {}).length && (s.match(/\{[a-z_]+\}/g) || []);
+  if (miss.length) { // 数据不全：改用只说结论的那句，不留半截话
+    const alt = t('op_' + r.token + '_bare');
+    s = alt === 'op_' + r.token + '_bare' ? s.replace(/\{[a-z_]+\}/g, '') : alt;
+    Object.keys(r.args || {}).forEach(k => { s = s.split('{' + k + '}').join(r.args[k]); });
+  } else {
+    Object.keys(r.args || {}).forEach(k => { s = s.split('{' + k + '}').join(r.args[k]); });
+  }
   if (r.token === 'restart_big_dry' && r.args.ports === 'none') s = s.split('{ports}').join(t('op_ports_none'));
   return s;
 }
@@ -939,7 +973,18 @@ function showTab(name) {
 }
 
 function mainRight() { const m = document.querySelector('main'); return Math.round(m.getBoundingClientRect().right); }
-async function selfTest() {
+
+// 自检换语言时只换界面文字：不写配置、不动后端语言（跑完不会留在英文）。
+function setLangQuiet(lang) {
+  LANG = lang === 'zh' ? 'zh' : 'en';
+  applyI18n();
+}
+
+function startAutoRefresh() {
+  if (window.FB_TIMER) clearInterval(window.FB_TIMER);
+  window.FB_TIMER = setInterval(refresh, 15000); // 状态自己动（模型闲置卸载、别的窗口起停），15 秒看一眼
+}
+async function selfTestRun() {
   const rep = [];
   const prevTab = TAB;
   showTab('models'); // 不在 Models 页时那一页的按钮全是 0x0，量了会误判成「按钮没了」
@@ -1057,12 +1102,12 @@ async function selfTest() {
   ' rescueTitle=' + String($('btnGwRescue') ? $('btnGwRescue').title : '').slice(0, 24) +
   ' rescueHardTitle=' + String($('btnGwRescueHard') ? $('btnGwRescueHard').title : '').slice(0, 24));
   const langBeforeOps = LANG;
-  setLang('en');
+  setLangQuiet('en');
   for (const [name, call] of [['stopDry', () => goApp().StopAll(true)], ['stopAllDry', () => goApp().StopEverything(true)], ['svcStopDry', () => goApp().ServiceAct('router', 8080, 'stop', true)], ['svcRestDry', () => goApp().ServiceAct('engine', 8095, 'rest', true)], ['svcStartDry', () => goApp().ServiceAct('engine', (SNAP && SNAP.swap && SNAP.swap.port) || 8089, 'start', true)], ['resDry', () => goApp().SetReserve(1536, 300, true)], ['rbDry', () => goApp().RollbackReserve(true)], ['cacheDry', () => goApp().ClearBigCache(true)], ['bigDry', () => goApp().RestartBigModel(true)], ['rescueDry', () => goApp().RescueGateway(false, true)], ['hardDry', () => goApp().RescueGateway(true, true)]]) {
     try { const v = await Promise.race([call().then(x => ({ txt: opText(x), head: opHead(x) })).catch(e => ({ txt: 'err:' + (e.message || e), head: 'err:' + (e.message || e) })), new Promise(r => setTimeout(() => r('TIMEOUT'), 20000))]); const badTok = /\b(op_|note_)[a-z_]+/.test(v.txt) ? ' TOKEN-LEAK' : ''; const zhInEn = /[\u4e00-\u9fff]/.test(v.head) ? ' CJK-IN-EN' : ''; rep.push(name + '=ok:' + v.txt.replace(/\s+/g, ' ').slice(0, 110) + badTok + zhInEn); }
     catch (e) { rep.push(name + '-threw ' + (e.message || e)); }
   }
-  setLang(langBeforeOps);
+  setLangQuiet(langBeforeOps);
   try {
     const pw = await Promise.race([
       goApp().SetPowerWatts(0, 0, true).then(v => 'ok:' + String(v).replace(/\s+/g, ' ').slice(0, 70)).catch(e => 'err:' + (e.message || e)),
@@ -1070,11 +1115,11 @@ async function selfTest() {
     ]);
     rep.push('pwDry=' + pw);
   } catch (e) { rep.push('pwDry-threw ' + (e.message || e)); }
-  setLang('en');
+  setLangQuiet('en');
   if (SNAP) { renderTop(SNAP); }
   const extraEN = [$('curModel').textContent, $('monLink').textContent, $('refreshAt').textContent, $('ocLink').textContent].join(' | ');
   rep.push('extraEN=' + extraEN.replace(/\s+/g, ' ').slice(0, 110) + (/\b(op_|note_|cal_)[a-z_]+/.test(extraEN) ? ' TOKEN-LEAK' : '') + (/[\u4e00-\u9fff]/.test(extraEN) ? ' CJK-IN-EN' : ''));
-  setLang(langBeforeOps);
+  setLangQuiet(langBeforeOps);
   const meas = $('mountedRows').querySelector('.badge.measured');
   rep.push('measuredBadge=' + (meas ? meas.textContent : 'none'));
   const rows = [...$('mountedRows').querySelectorAll('tr')];
@@ -1087,14 +1132,14 @@ async function selfTest() {
   rep.push('stopBtn=' + (stopBtn ? Math.round(stopBtn.getBoundingClientRect().width) + 'px text=' + stopBtn.textContent : 'none'));
   const before = SNAP ? SNAP.models.length : -1;
   const prevLang = LANG;
-  setLang('en'); // 先切英文再切中文：当前语言本来就是中文时
+  setLangQuiet('en'); // 先切英文再切中文：当前语言本来就是中文时
   const tabsEN = [...document.querySelectorAll('.tab')].map(b => b.textContent).join('/');
   const tgENtxt = String($('engineState').textContent || '');
-  setLang('zh');
+  setLangQuiet('zh');
   const tabsZH = [...document.querySelectorAll('.tab')].map(b => b.textContent).join('/');
   const tgZHtxt = String($('engineState').textContent || '');
   const colsZH = [...document.querySelectorAll('#modelTable th')].map(x => x.textContent).join('/');
-  setLang(prevLang);
+  setLangQuiet(prevLang);
   const tabsBack = [...document.querySelectorAll('.tab')].map(b => b.textContent).join('/');
   rep.push('tabsEN=' + tabsEN);
   rep.push('tabsZH=' + tabsZH);
@@ -1163,7 +1208,29 @@ async function selfTest() {
   try { await goApp().Debug('selftest ' + rep.join(' | ')); } catch (e) { rep.push('debug-call-failed ' + (e.message || e)); }
   $('doctorOut').textContent = rep.join('\n') + '\nmodelsBefore=' + before;
   showTab(prevTab);
-  feed('selftest done');
+  feed(t('selftest_done'));
+}
+
+// 自检跑在看不见的层里：页面不跳、语言不跳，跑完原样恢复。
+async function selfTest() {
+  const prevTab = TAB;
+  document.body.classList.add('selftesting');
+  const bar = $('busyBar');
+  if (bar) { bar.textContent = t('selftest_running'); bar.classList.remove('hidden'); }
+  if (window.FB_TIMER) { clearInterval(window.FB_TIMER); window.FB_TIMER = null; } // 跑期间不刷新，免得堆叠变慢
+  try {
+    await selfTestRun();
+  } catch (e) {
+    try { await goApp().Debug('selftest-threw ' + (e && (e.stack || e.message) || e)); } catch (e2) {}
+    feed(t('err_prefix') + ((e && e.message) || e));
+  } finally {
+    document.body.classList.remove('selftesting');
+    if (bar) bar.classList.add('hidden');
+    applyI18n();
+    if (SNAP) render(SNAP);
+    showTab(prevTab);
+    startAutoRefresh();
+  }
 }
 
 async function boot() {
@@ -1174,6 +1241,7 @@ async function boot() {
   document.querySelectorAll('.tab').forEach(b => b.onclick = () => showTab(b.getAttribute('data-tab')));
   $('btnRefresh').onclick = refresh;
   $('btnStopAll').onclick = doStopAll;
+  if ($('selGPU')) $('selGPU').onchange = (e) => { goApp().SetGPU(e.target.value).then((g) => { if (SNAP) SNAP.gpu = g; }).catch(() => {}); };
   $('ckHideSmall').onchange = (e) => { goApp().SetHideSmall(e.target.checked).catch(() => {}); if (SNAP) { renderMounted({ ...SNAP, hideSmall: e.target.checked }); } };
   $('btnSave').onclick = doSave;
   $('btnDetect').onclick = doDetect;
@@ -1213,7 +1281,7 @@ $('ckTkSys').onchange = () => { if (SNAP) renderTasks(SNAP); };
     window.go.app.Events.On('tab', (name) => showTab(name));
     window.go.app.Events.On('usage', () => { refresh(); });
   }
-  setInterval(refresh, 15000); // 状态自己动（模型闲置卸载、别的窗口起停），15 秒看一眼
+  startAutoRefresh();
 }
 
 document.addEventListener('DOMContentLoaded', boot);
