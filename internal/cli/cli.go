@@ -13,7 +13,7 @@ import (
 	"github.com/ronda2009/forgeboard/internal/fb"
 )
 
-const Version = "2.5.1"
+const Version = "2.5.2"
 
 var Commands = []string{"scan", "list", "start", "stop", "status", "calib", "doctor", "plan", "reload", "usage", "version"}
 
