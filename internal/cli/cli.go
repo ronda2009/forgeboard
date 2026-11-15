@@ -77,6 +77,7 @@ func ScanMerge(ctx context.Context, p fb.Paths) []fb.Model {
 		}
 	}
 
+	_, tierSize := fb.TierModels(p)
 	if rs := fb.AskRouter(ctx, p.RouterURL); rs != nil {
 		up := fb.PortsUp(ctx, portsOf(rs.Tiers))
 		for tier, port := range rs.Tiers {
@@ -84,6 +85,9 @@ func ScanMerge(ctx context.Context, p fb.Paths) []fb.Model {
 			m, has := byKey[k]
 			if !has {
 				m = fb.Model{Key: k, Name: "tier " + tier, Tier: tier, Engine: "strata", Source: "engine:strata"}
+			}
+			if v := tierSize[tier]; v > 0 && m.Need == 0 {
+				m.Need = v + 2048 // 档位配置引用的 gguf 合计体积 + 余量（没实测前的估算）
 			}
 			m.Port = port
 			m.Running = up[port]
@@ -95,7 +99,11 @@ func ScanMerge(ctx context.Context, p fb.Paths) []fb.Model {
 			if _, has := byKey[k]; has {
 				continue // 目录里真有同名 gguf 就以目录为准（已有条目优先）
 			}
-			byKey[k] = fb.Model{Key: k, Name: "tier " + tier, Tier: tier, Engine: "strata", Port: port, Source: "tier:" + tier}
+			need := 0
+			if v := tierSize[tier]; v > 0 {
+				need = v + 2048
+			}
+			byKey[k] = fb.Model{Key: k, Name: "tier " + tier, Tier: tier, Engine: "strata", Port: port, Need: need, Source: "tier:" + tier}
 		}
 	}
 
@@ -179,10 +187,8 @@ func ScanMerge(ctx context.Context, p fb.Paths) []fb.Model {
 func CmdScan(ctx context.Context, args []string) error {
 	p := fb.LoadPaths()
 	rows := ScanMerge(ctx, p)
-	if cal := fb.AutoCalibrate(ctx, p, rows); cal != nil { // 自动评估（只读）：量到就当场用上
-		fmt.Println("calib:", fb.CalibLine(cal))
-		fb.ApplyCalib(rows)
-	}
+	fb.MeasureRunning(rows) // 在跑的模型按进程实测显存
+	fb.ApplyCalib(rows)
 	if contains(args, "--json") {
 		b, _ := json.MarshalIndent(rows, "", "  ")
 		fmt.Println(string(b))
@@ -210,27 +216,14 @@ func CmdScan(ctx context.Context, args []string) error {
 func CmdCalib(ctx context.Context) error {
 	p := fb.LoadPaths()
 	rows := ScanMerge(ctx, p)
-	var running []string
+	fb.MeasureRunning(rows)
+	fb.ApplyCalib(rows)
 	for _, m := range rows {
-		if m.Running && m.Engine != "other" {
-			running = append(running, m.Key)
+		if m.Running && m.Measured {
+			fmt.Printf("%s = %d MiB (measured)\n", m.Key, m.Need)
 		}
 	}
-	if len(running) > 1 {
-		return fmt.Errorf("%d models running at once - cannot attribute VRAM to one of them", len(running))
-	}
-	key := ""
-	if len(running) == 1 {
-		key = running[0]
-	}
-	cal, err := fb.Calibrate(ctx, p, key)
-	if err != nil {
-		return err
-	}
-	if cal == nil {
-		return fmt.Errorf("engine is up but no model could be identified - nothing recorded")
-	}
-	fmt.Println(fb.CalibLine(cal))
+	fmt.Println("calib:", fb.CalibStatsLine())
 	return nil
 }
 

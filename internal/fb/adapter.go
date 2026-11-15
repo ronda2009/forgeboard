@@ -64,7 +64,7 @@ func Start(ctx context.Context, p Paths, m Model, dry bool) error {
 			return fmt.Errorf("__switch returned HTTP %d: %s", r.code, strings.TrimSpace(string(r.body)))
 		}
 		if waitRouterTier(ctx, p.RouterURL, tierNameOf(m)) {
-			RecordRun(ctx, m.Key)
+			measureAfterStart(p, m, tierPort(ctx, p, m))
 		}
 		return nil
 	case "llama", "llama-swap":
@@ -105,7 +105,7 @@ func Start(ctx context.Context, p Paths, m Model, dry bool) error {
 		if err := s.Start(ctx, m.Key, m.Embed); err != nil {
 			return explainStartFail(p, m, err)
 		}
-		RecordRun(ctx, m.Key) // 请求能回来说明模型已加载完 → 此刻量的是准数
+		measureAfterStart(p, m, p.SwapPort) // 请求能回来说明模型已加载完 → 此刻量的是准数
 		return nil
 	default:
 		return fmt.Errorf("engine %q not supported yet (run: forgectl doctor)", m.Engine)
@@ -131,6 +131,7 @@ func Stop(ctx context.Context, p Paths, m Model, dry bool) error {
 			return err
 		}
 		waitPortDown(m.Port)
+		invalidateVRAMCache()
 		return nil
 	case "llama", "llama-swap":
 		s, err := NewSwap(p)
@@ -145,7 +146,11 @@ func Stop(ctx context.Context, p Paths, m Model, dry bool) error {
 			fmt.Println("llama-swap is not running - nothing to unload")
 			return nil
 		}
-		return s.StopOne(ctx, m.Key)
+		if err := s.StopOne(ctx, m.Key); err != nil {
+			return err
+		}
+		invalidateVRAMCache()
+		return nil
 	default:
 		return fmt.Errorf("engine %q not supported yet", m.Engine)
 	}

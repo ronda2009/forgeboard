@@ -291,10 +291,8 @@ type SwapInfo struct {
 func (a *App) Snapshot() (*Snapshot, error) {
 	p := fb.LoadPaths()
 	rows := cli.ScanMerge(a.ctx, p)
-	cal := fb.AutoCalibrate(a.ctx, p, rows) // 启动/刷新时自动评估
-	if cal != nil {
-		fb.ApplyCalib(rows)
-	}
+	fb.MeasureRunning(rows) // 在跑的模型按进程实测显存（谁起的都能量到）
+	fb.ApplyCalib(rows)
 	s := &Snapshot{
 		Version:   a.version,
 		ConfigDir: fb.CfgDir(),
