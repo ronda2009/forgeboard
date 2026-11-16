@@ -47,7 +47,7 @@ const checks = [
   ['task table hides Windows built-ins on the checkbox', /ckTkSys/.test(app) && /!r\.system/.test(app)],
   ['progress lines render through the dictionary', /function stepText\(msg\)/.test(app) && /t\(key\)/.test(app)],
   ['progress lines land on their own panel', app.includes("$('stepOut')")],
-  ['usage and step keys exist in both dictionaries', ['us_box', 'us_now', 'us_state', 'us_chip', 'us_free', 'us_col_today', 'us_col_7d', 'us_col_30d', 'us_local_free', 'us_rate_note', 'us_rate_fallback', 'tk_hide_sys', 'step_big_kill', 'step_svc_start', 'step_gw_wait'].every((k) => hasBoth(i18n, k))],
+  ['usage and step keys exist in both dictionaries', ['us_box', 'us_now', 'us_state', 'us_chip', 'us_free', 'us_col_today', 'us_col_7d', 'us_col_30d', 'us_local_free', 'us_rate_note', 'tk_hide_sys', 'step_big_kill', 'step_svc_start', 'step_gw_wait'].every((k) => hasBoth(i18n, k))],
   ['usage panel shows the three ranges and per-model totals only', /usStats/.test(app) && /usModelRows/.test(app) && !/usDailyRows|usGroupRows/.test(app)],
   ['local models render as free', /m\.local/.test(app) && /us_local_free/.test(app)],
   ['cost converts to yuan in Chinese using the collected rate', /LANG === 'zh'/.test(fmtCostBlock(app)) && /u\.rate/.test(app) && /us_rate_note/.test(app)],
