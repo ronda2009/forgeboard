@@ -83,9 +83,10 @@ type UsageSummary struct {
 	Errors    int              `json:"errors"`
 	Windows   int              `json:"windows"` // 窗口总数（列表可能截断，这里给真数）
 	Daily     []UsageDaily     `json:"daily"`
-	Today     UsageRange       `json:"today"`  // 本机今天
-	D7        UsageRange       `json:"d7"`     // 最近 7 天（含今天）
-	Models    []UsageModelRoll `json:"models"` // 一个模型一行
+	Today     UsageRange       `json:"today"`             // 本机今天
+	D7        UsageRange       `json:"d7"`                // 最近 7 天（含今天）
+	Models    []UsageModelRoll `json:"models"`            // 一个模型一行
+	Mounted   []MountedModel   `json:"mounted,omitempty"` // 采集时的挂载清单（id→显示名），界面用它翻译模型行
 	ByModel   []UsageGroup     `json:"byModel"`
 	ByService []UsageGroup     `json:"byService"`
 	Note      string           `json:"note,omitempty"` // 采不到时的原因（文案键，界面翻译）
@@ -150,7 +151,7 @@ func parseUsage(out []byte, localProv map[string]bool, rate float64) (*UsageSumm
 			Cost      float64 `json:"totalCost"`
 			Unpriced  int     `json:"missingCostEntries"`
 		} `json:"totals"`
-		Sessions []struct{} `json:"sessions"`
+		Sessions   []struct{} `json:"sessions"`
 		Aggregates struct {
 			Messages struct {
 				Total     int `json:"total"`
@@ -241,6 +242,7 @@ func parseUsage(out []byte, localProv map[string]bool, rate float64) (*UsageSumm
 		mdays = append(mdays, UsageModelDay{Date: m.Date, Provider: m.Provider, Model: m.Model, Tokens: m.Tokens, Cost: m.Cost, Count: m.Count})
 	}
 	s.Models = rollUsageModels(mdays, today, d7from, localProv)
+	s.Mounted = usageModelNames()
 	return s, nil
 }
 
@@ -278,6 +280,21 @@ func ReadUsage() (*UsageSummary, string) {
 func localToday() (string, string) {
 	now := time.Now()
 	return now.Format("2006-01-02"), now.AddDate(0, 0, -6).Format("2006-01-02")
+}
+
+// 采集当时的挂载清单：id → 显示名。界面翻译用量行用；读不到就不带，界面退回原样显示。
+func usageModelNames() []MountedModel {
+	c, err := LoadOCConfig(LoadPaths())
+	if err != nil || c == nil {
+		return nil
+	}
+	var out []MountedModel
+	for _, pr := range c.Providers {
+		for _, m := range pr.Models {
+			out = append(out, MountedModel{Provider: pr.Name, ID: m.ID, Name: m.Name})
+		}
+	}
+	return out
 }
 
 func rollUsageModels(days []UsageModelDay, today, d7from string, localProv map[string]bool) []UsageModelRoll {
@@ -339,7 +356,7 @@ func usageCNY(usd float64, rate float64) float64 {
 
 const (
 	usageRateDefault = 7.1
-	usageRateURL = "https://open.er-api.com/v6/latest/USD"
+	usageRateURL     = "https://open.er-api.com/v6/latest/USD"
 )
 
 func fetchUsageRate() float64 {

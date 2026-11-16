@@ -605,11 +605,15 @@ function renderUsage(s) {
     usStat(t('us_30d'), fmtTok(tot.tokens), fmtCost(tot.cost, u.rate)),
   ].join('');
   const models = u.models || [];
+  const nm = {};
+  (u.mounted || SNAP.mounted || []).forEach(m => { if (m.name && m.name !== m.id) nm[(m.provider ? m.provider + '/' : '') + m.id] = m.name; });
   const maxTok = models.reduce((m, x) => Math.max(m, x.d30 || 0), 0);
   $('usModelRows').innerHTML = models.map(m => {
-    const name = (m.provider ? m.provider + '/' : '') + (m.model || '');
+    const raw = (m.provider ? m.provider + '/' : '') + (m.model || '');
+    const name = nm[raw] || raw;
     const w = maxTok > 0 && m.d30 ? Math.max(2, Math.round((m.d30 / maxTok) * 100)) : 0;
     return '<tr' + (m.today ? '' : ' class="us-zero"') + '><td><div class="mname">' + esc(name) + '</div>' +
+      (name !== raw ? '<div class="mkey">' + esc(raw) + '</div>' : '') +
       (w ? '<div class="us-bar"><i style="width:' + w + '%"></i></div>' : '') + '</td>' +
       '<td class="us-tok">' + (m.today ? fmtTok(m.today) : '-') + '</td>' +
       '<td class="us-num">' + fmtTok(m.d7) + '</td><td class="us-num">' + fmtTok(m.d30) + '</td>' +
@@ -618,12 +622,7 @@ function renderUsage(s) {
   const un = $('usUnpriced');
   if (un) un.textContent = tot.unpriced ? t('us_unpriced').split('{n}').join(tot.unpriced) : '';
   const rt = $('usRate');
-  if (rt) {
-    const rate = Number(u.rate) || 0;
-    rt.textContent = (LANG === 'zh' && tot.cost)
-      ? t(rate > 0 ? 'us_rate_note' : 'us_rate_fallback').split('{rate}').join(rate > 0 ? rate.toFixed(2) : US_RATE_FALLBACK)
-      : '';
-  }
+  if (rt) rt.textContent = tot.cost ? t('us_rate_note') : '';
 }
 
 function renderStartup(s) {

@@ -460,6 +460,13 @@ func (a *App) Snapshot() (*Snapshot, error) {
 	s.SelfOn, s.SelfEntry = fb.SelfStartState()
 	s.SelfDir = fb.StartupFolderUser()
 	s.Usage = a.usageCached()
+	if s.Usage != nil && len(s.Usage.Mounted) == 0 {
+		var names []fb.MountedModel
+		for _, r := range s.Mounted {
+			names = append(names, fb.MountedModel{Provider: r.Provider, ID: r.ID, Name: r.Name})
+		}
+		s.Usage.Mounted = names // 用量文件是旧的也用当前挂载清单翻译（换模型后显示名不滞后）
+	}
 	return s, nil
 }
 
