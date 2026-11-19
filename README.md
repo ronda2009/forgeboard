@@ -35,7 +35,7 @@ OpenClaw 的模型服务管理面板。Windows 单文件，免安装。
 
 ## 安装
 
-下载 `forgeboard-v2.5.0-windows.zip`，解压后双击 `forgeboard.exe`（界面）或 `forgectl.exe`（命令行）。
+下载 `forgeboard-v2.5.4-windows.zip`，解压后双击 `forgeboard.exe`（界面）或 `forgectl.exe`（命令行）。
 未经数字签名，SmartScreen 提示「未知发布者」时：右键 → 属性 → 解除锁定。
 从 3.x 控制台升级：直接解压新版即可，旧版数据不受影响；配置为同一个 `forgeboard.json`（3.x 叫 `console-paths.json`），换机自动寻径。
 
@@ -74,7 +74,7 @@ MIT（见 [`LICENSE`](LICENSE)；[`LICENSE-中文参考.txt`](LICENSE-中文参�
 
 见 [Releases](https://github.com/ronda2009/forgeboard/releases)：
 
-- **2.x 锻造台（现役）**：`forgeboard-v2.5.0-windows.zip`（约 30 MB，界面 exe + 命令行 exe + 示例配置 + README + LICENSE + `SHA256.txt`）
+- **2.x 锻造台（现役）**：`forgeboard-v2.5.4-windows.zip`（约 39 MB，界面 exe + 命令行 exe + 示例配置 + README + LICENSE + `SHA256.txt`）
 - **3.x 控制台（冻结在岗）**：`model-deck-v31-windows.zip`（约 2 MB，exe + 两份示例配置 + README + LICENSE + `SHA256.txt`）
 
 ## 版本 / Versions
