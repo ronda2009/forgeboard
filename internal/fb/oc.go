@@ -99,6 +99,9 @@ func ocWhere(s map[string]any) string {
 	if b, _ := s["isMain"].(bool); b {
 		return "where-main"
 	}
+	if strings.Contains(str(s["key"]), ":dashboard:") {
+		return "where-dashboard" // 控制台新建的窗口没有渠道字段，按 key 认
+	}
 	switch c {
 	case "feishu":
 		if str(s["peerKind"]) == "group" {
@@ -121,8 +124,9 @@ func ocClassify(s map[string]any) string {
 	if b, _ := s["isMain"].(bool); b {
 		return "chat"
 	}
-	if str(s["createdVia"]) == "channel" {
-		return "chat"
+	switch str(s["createdVia"]) {
+	case "channel", "operator":
+		return "chat" // 渠道来的与控制台新建的都是对话窗口
 	}
 	nm := ocName(s)
 	if strings.Contains(nm, "exec completion") || strings.Contains(nm, "心跳") {
