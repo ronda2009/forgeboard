@@ -12,10 +12,10 @@ func TestClassifyWindows(t *testing.T) {
 	}{
 		{"feishu group", map[string]any{"key": "agent:main:feishu:group:oc_x", "channel": "feishu", "peerKind": "group", "createdVia": "channel"}, "chat", "where-feishu-group"},
 		{"wechat direct", map[string]any{"key": "agent:main:openclaw-weixin:direct:o9", "channel": "openclaw-weixin", "createdVia": "channel"}, "chat", "where-openclaw-weixin"},
-		{"console new window", map[string]any{"key": "agent:main:dashboard:cfa3032f", "label": "小杜全景声Q", "createdVia": "operator"}, "chat", "where-dashboard"},
+		{"console new window", map[string]any{"key": "agent:main:dashboard:0f1e2d3c", "label": "My Console Chat", "createdVia": "operator"}, "chat", "where-dashboard"},
 		{"main session", map[string]any{"key": "agent:main:main", "isMain": true}, "chat", "where-main"},
-		{"cron job", map[string]any{"key": "agent:main:cron:fea31b52", "label": "Automation: 每周技能清理", "createdVia": "cron"}, "sys", "where-other"},
-		{"heartbeat", map[string]any{"key": "agent:main:main:heartbeat", "label": "心跳工作间"}, "sys", "where-other"},
+		{"cron job", map[string]any{"key": "agent:main:cron:0a0b0c0d", "label": "Automation: Weekly Cleanup", "createdVia": "cron"}, "sys", "where-other"},
+		{"heartbeat", map[string]any{"key": "agent:main:main:heartbeat", "label": "Heartbeat Worker"}, "sys", "where-other"},
 		{"cron trigger", map[string]any{"key": "agent:main:cron:562fdc08:trigger"}, "sys", "where-other"},
 	}
 	for _, c := range cases {
